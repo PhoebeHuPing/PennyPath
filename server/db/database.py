@@ -1,8 +1,8 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship
 import os
 from dotenv import load_dotenv
-from datetime import date
+from datetime import date, datetime
 
 load_dotenv()
 
@@ -23,9 +23,14 @@ class DBUser(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    avatar_url = Column(String, nullable=True, default=None)
+    display_name = Column(String, nullable=True, default=None)
+    currency = Column(String, nullable=False, default="USD")
 
     expenses = relationship("DBExpense", back_populates="owner")
+    incomes = relationship("DBIncome", back_populates="owner")
     categories = relationship("DBCategory", back_populates="owner")
+    budgets = relationship("DBBudget", back_populates="owner")
 
     def __repr__(self):
         return f"<DBUser(id={self.id}, username='{self.username}')>"
@@ -39,9 +44,26 @@ class DBCategory(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("DBUser", back_populates="categories")
     expenses = relationship("DBExpense", back_populates="category")
+    budgets = relationship("DBBudget", back_populates="category")
 
     def __repr__(self):
         return f"<DBCategory(id={self.id}, name='{self.name}')>"
+
+
+class DBBudget(Base):
+    __tablename__ = "budgets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    amount = Column(Float, nullable=False)
+    month = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=False)
+    owner = relationship("DBUser", back_populates="budgets")
+    category = relationship("DBCategory", back_populates="budgets")
+
+    def __repr__(self):
+        return f"<DBBudget(id={self.id}, amount={self.amount}, month={self.month}/{self.year})>"
 
 
 class DBExpense(Base):
@@ -58,6 +80,35 @@ class DBExpense(Base):
 
     def __repr__(self):
         return f"<DBExpense(id={self.id}, amount={self.amount}, date={self.date})>"
+
+
+class DBIncome(Base):
+    __tablename__ = "incomes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, default=date.today)
+    source = Column(String, nullable=False)
+    amount = Column(Float, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    owner = relationship("DBUser", back_populates="incomes")
+
+    def __repr__(self):
+        return f"<DBIncome(id={self.id}, amount={self.amount}, source='{self.source}')>"
+
+
+class DBPasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token = Column(String, unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Integer, default=0)  # 0 = unused, 1 = used
+
+    user = relationship("DBUser")
+
+    def __repr__(self):
+        return f"<DBPasswordResetToken(id={self.id}, user_id={self.user_id})>"
 
 
 def init_db():
